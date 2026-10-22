@@ -5,17 +5,13 @@ window.SPORLOS_CONFIG = {
   journeyPlannerUrl: "https://api.entur.io/journey-planner/v3/graphql",
   geocoderUrl: "https://api.entur.io/geocoder/v1/autocomplete",
 
-  // Stasjonene slås opp via Entur Geocoder ved første lasting og caches i nettleseren.
+  // Standardstrekning. Stasjonene slås opp via Entur Geocoder og caches i nettleseren;
   // fallbackId brukes hvis oppslaget feiler.
-  stations: {
-    SKI: { query: "Ski stasjon", label: "Ski", fallbackId: "NSR:StopPlace:60944" },
-    OSL: { query: "Oslo S", label: "Oslo S", fallbackId: "NSR:StopPlace:59872" },
+  defaultRoute: {
+    from: { query: "Ski stasjon", name: "Ski", fallbackId: "NSR:StopPlace:60944" },
+    to: { query: "Oslo S", name: "Oslo S", fallbackId: "NSR:StopPlace:59872" },
   },
-
-  directions: {
-    SKI_OSL: { from: "SKI", to: "OSL" },
-    OSL_SKI: { from: "OSL", to: "SKI" },
-  },
+  maxSavedRoutes: 8,
 
   numberOfDepartures: 40,   // hentes fra avgangsstasjonen før filtrering
   timeRangeSeconds: 3 * 3600,

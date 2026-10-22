@@ -6,4 +6,4 @@ Mulige neste steg, i omtrent prioritert rekkefølge:
 2. **Statistikk over tid** – logg avganger (f.eks. GitHub Action hver 5. min som skriver til JSON/SQLite) og vis punktlighet per dag/uke: «Sporløs-indeksen».
 3. **Varsler** – push/PWA-varsel når «ditt» tog blir forsinket eller innstilt.
 4. **PWA** – manifest og service worker så appen kan legges på hjemskjermen.
-5. **Flere strekninger** – gjør stasjonsparet konfigurerbart via URL (`?fra=…&til=…`).
+5. ~~**Flere strekninger**~~ – gjort: stasjonsvelger, lagrede strekninger i `localStorage` og `?fra=…&til=…`.
