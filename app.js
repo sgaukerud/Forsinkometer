@@ -26,7 +26,10 @@
     const data = await res.json();
     const features = data.features || [];
     const isRail = (f) => (f.properties.category || []).includes("railStation");
-    const hit = features.find(isRail) || features[0];
+    // Søket «Ski stasjon» gir også «Skien stasjon», så foretrekk eksakt navnetreff.
+    const norm = (s) => (s || "").toLowerCase().replace(/\s+stasjon$/, "").trim();
+    const exact = (f) => norm(f.properties.name) === norm(st.query);
+    const hit = features.find((f) => isRail(f) && exact(f)) || features.find(isRail) || features[0];
     if (!hit) throw new Error(`Fant ikke ${st.query}`);
     return hit.properties.id;
   }
