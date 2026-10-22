@@ -4,7 +4,7 @@
 
   const CFG = window.SPORLOS_CONFIG;
   const HEADERS = { "ET-Client-Name": CFG.clientName };
-  const CACHE_KEY = "sporlos.stopIds.v1";
+  const CACHE_KEY = "sporlos.stopIds.v2";
 
   const $ = (id) => document.getElementById(id);
   const state = { dir: "SKI_OSL", stopIds: {}, timer: null };
@@ -26,7 +26,10 @@
     const data = await res.json();
     const features = data.features || [];
     const isRail = (f) => (f.properties.category || []).includes("railStation");
-    const hit = features.find(isRail) || features[0];
+    // Søket «Ski stasjon» gir også «Skien stasjon», så foretrekk eksakt navnetreff.
+    const norm = (s) => (s || "").toLowerCase().replace(/\s+stasjon$/, "").trim();
+    const exact = (f) => norm(f.properties.name) === norm(st.query);
+    const hit = features.find((f) => isRail(f) && exact(f)) || features.find(isRail) || features[0];
     if (!hit) throw new Error(`Fant ikke ${st.query}`);
     return hit.properties.id;
   }
@@ -83,7 +86,7 @@
               aimedArrivalTime
               expectedArrivalTime
               cancellation
-              quay { stopPlace { id } }
+              quay { stopPlace { id parent { id } } }
             }
           }
         }
@@ -107,9 +110,13 @@
     // Behold bare avganger som faktisk stopper på destinasjonen senere i samme tur.
     return calls
       .map((call) => {
-        const later = (call.serviceJourney?.estimatedCalls || []).find(
-          (c) => c.quay?.stopPlace?.id === toId && c.stopPositionInPattern > call.stopPositionInPattern
-        );
+        // Ski stasjon og Oslo S er multimodale foreldrestopp i NSR. Sporene (quay) hører til
+        // et barnestopp (tog), så vi må sammenligne med både barnet og forelderen.
+        const later = (call.serviceJourney?.estimatedCalls || []).find((c) => {
+          const sp = c.quay?.stopPlace;
+          const atDest = sp?.id === toId || sp?.parent?.id === toId;
+          return atDest && c.stopPositionInPattern > call.stopPositionInPattern;
+        });
         return later ? toDeparture(call, later) : null;
       })
       .filter(Boolean)
