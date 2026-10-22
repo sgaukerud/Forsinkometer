@@ -2,42 +2,68 @@
 <html lang="nb">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Sporløs</title>
   <meta name="description" content="Sanntid for tog mellom Ski og Oslo S – med ærlig oversikt over forsinkelser og innstillinger.">
-  <meta name="theme-color" content="#0f1115">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚆</text></svg>">
+  <meta name="theme-color" content="#101418">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23101418'/><text x='50' y='68' font-size='56' text-anchor='middle'>🚆</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <h1>Sporløs</h1>
-      <p class="tagline">Vi viser deg toget – hvis det finnes.</p>
-    </div>
-    <div class="direction" role="tablist" aria-label="Retning">
-      <button role="tab" data-dir="SKI_OSL" aria-selected="true">Ski → Oslo S</button>
-      <button role="tab" data-dir="OSL_SKI" aria-selected="false">Oslo S → Ski</button>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="32" height="32"><path d="M6 26 L13 6 M26 26 L19 6 M9 18h14 M10.5 13h11 M7.5 23h17" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+        </span>
+        <div>
+          <h1>Sporløs</h1>
+          <p class="tagline">Vi viser deg toget – hvis det finnes.</p>
+        </div>
+      </div>
+
+      <div class="direction" role="tablist" aria-label="Retning">
+        <button role="tab" data-dir="SKI_OSL" aria-selected="true">
+          <span class="from">Ski</span><span class="arrow" aria-hidden="true">→</span><span class="to">Oslo S</span>
+        </button>
+        <button role="tab" data-dir="OSL_SKI" aria-selected="false">
+          <span class="from">Oslo S</span><span class="arrow" aria-hidden="true">→</span><span class="to">Ski</span>
+        </button>
+      </div>
+
+      <section class="next" id="next" aria-live="polite" hidden></section>
     </div>
   </header>
 
   <main>
-    <section class="summary" aria-live="polite">
-      <div class="stat"><span class="num" id="stat-total">–</span><span class="label">avganger</span></div>
-      <div class="stat ok"><span class="num" id="stat-ok">–</span><span class="label">i rute</span></div>
-      <div class="stat late"><span class="num" id="stat-late">–</span><span class="label">forsinket</span></div>
-      <div class="stat gone"><span class="num" id="stat-cancelled">–</span><span class="label">sporløst</span></div>
+    <section class="report" aria-label="Dagens tilstand">
+      <p class="verdict" id="verdict">Sjekker om skinnene fortsatt ligger der de skal …</p>
+      <div class="meter" id="meter" aria-hidden="true">
+        <span class="seg ok"></span><span class="seg late"></span><span class="seg gone"></span>
+      </div>
+      <dl class="summary" aria-live="polite">
+        <div class="stat"><dt>Avganger</dt><dd id="stat-total">–</dd></div>
+        <div class="stat ok"><dt>I rute</dt><dd id="stat-ok">–</dd></div>
+        <div class="stat late"><dt>Forsinket</dt><dd id="stat-late">–</dd></div>
+        <div class="stat gone"><dt>Sporløst</dt><dd id="stat-cancelled">–</dd></div>
+      </dl>
     </section>
 
-    <p class="verdict" id="verdict"></p>
+    <div class="list-head">
+      <h2>Avganger</h2>
+      <p class="status" id="status"><span class="dot" aria-hidden="true"></span><span class="status-text">Henter avganger …</span></p>
+    </div>
 
-    <ol class="departures" id="departures" aria-live="polite"></ol>
-
-    <p class="status" id="status">Henter avganger …</p>
+    <ol class="departures" id="departures" aria-live="polite">
+      <li class="skeleton"></li><li class="skeleton"></li><li class="skeleton"></li><li class="skeleton"></li>
+    </ol>
   </main>
 
   <footer>
-    <p>Data fra <a href="https://developer.entur.no" target="_blank" rel="noopener">Entur</a> (NLOD). Oppdateres hvert 30. sekund.</p>
+    <p>Data fra <a href="https://developer.entur.no" target="_blank" rel="noopener">Entur</a> (NLOD). Oppdateres hvert 30. sekund – oftere enn togene, noen dager.</p>
   </footer>
 
   <script src="config.js"></script>
