@@ -24,8 +24,13 @@ Retning kan settes i URL: `?retning=oslo` (Ski → Oslo S) eller `?retning=ski` 
 
 ## Publisering
 
-`.github/workflows/pages.yml` publiserer til GitHub Pages ved push til `main`.
-Slå på Pages under *Settings → Pages → Source: GitHub Actions*.
+Appen publiseres til **Azure Static Web Apps** av `.github/workflows/azure-static-web-apps.yml`:
+
+- Push til `main` publiserer produksjon.
+- Pull requests mot `main` får en egen forhåndsvisnings-URL, som slettes når PR-en lukkes.
+- Rotmappen publiseres som den er (ingen byggesteg, ingen API).
+
+Workflowen trenger secret `AZURE_STATIC_WEB_APPS_API_TOKEN` (deployment token fra Azure-portalen: *Static Web App → Overview → Manage deployment token*), lagt inn under *Settings → Secrets and variables → Actions*.
 
 ## Konfigurasjon
 
