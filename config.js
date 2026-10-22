@@ -8,7 +8,7 @@ window.SPORLOS_CONFIG = {
   // Stasjonene slås opp via Entur Geocoder ved første lasting og caches i nettleseren.
   // fallbackId brukes hvis oppslaget feiler.
   stations: {
-    SKI: { query: "Ski stasjon", label: "Ski", fallbackId: null },
+    SKI: { query: "Ski stasjon", label: "Ski", fallbackId: "NSR:StopPlace:60944" },
     OSL: { query: "Oslo S", label: "Oslo S", fallbackId: "NSR:StopPlace:59872" },
   },
 
