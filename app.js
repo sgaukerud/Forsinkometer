@@ -175,25 +175,86 @@
     return Math.round((d - Date.now()) / 60000);
   }
 
-  function render(deps) {
-    const list = $("departures");
-    list.replaceChildren();
+  function travelMinutes(d) {
+    const arr = d.arrivalExpected || d.arrivalAimed;
+    return arr ? Math.round((arr - d.expected) / 60000) : null;
+  }
 
+  function renderSummary(deps) {
     const late = deps.filter((d) => d.status === "late").length;
     const gone = deps.filter((d) => d.status === "cancelled").length;
+    const ok = deps.length - late - gone;
     $("stat-total").textContent = deps.length;
-    $("stat-ok").textContent = deps.length - late - gone;
+    $("stat-ok").textContent = ok;
     $("stat-late").textContent = late;
     $("stat-cancelled").textContent = gone;
     $("verdict").textContent = verdict(deps.length, late, gone);
 
-    if (!deps.length) {
-      list.append(el("li", "empty", "Ingen tog funnet de neste timene. Helt sporløst."));
-      return;
+    const meter = $("meter");
+    const pct = (n) => (deps.length ? `${(n / deps.length) * 100}%` : "0%");
+    meter.querySelector(".ok").style.width = pct(ok);
+    meter.querySelector(".late").style.width = pct(late);
+    meter.querySelector(".gone").style.width = pct(gone);
+  }
+
+  function renderNext(deps) {
+    const box = $("next");
+    const next = deps.find((d) => !d.cancelled && !d.departed && minutesUntil(d.expected) >= 0);
+    box.replaceChildren();
+    if (!next) { box.hidden = true; return; }
+    box.hidden = false;
+    box.className = `next ${next.status}`;
+
+    const m = minutesUntil(next.expected);
+    box.append(el("span", "label", m <= 1 ? "Løp!" : "Neste tog"));
+
+    const count = el("div", "count");
+    if (m <= 0) count.textContent = "Nå";
+    else {
+      count.append(String(m));
+      count.append(el("small", null, "min"));
     }
 
-    for (const d of deps) {
-      const li = el("li", `dep ${d.status}`);
+    const when = el("div", "when");
+    if (next.status === "late") when.append(el("s", null, t(next.aimed)));
+    when.append(el("span", null, t(next.expected)));
+
+    const sub = el("p", "sub");
+    const bits = [];
+    if (next.line) bits.push(["Linje ", next.line]);
+    if (next.track) bits.push(["Spor ", next.track]);
+    const tm = travelMinutes(next);
+    if (next.arrivalExpected) bits.push(["Fremme ", `${t(next.arrivalExpected)}${tm ? ` (${tm} min)` : ""}`]);
+    bits.forEach(([k, v], i) => {
+      if (i) sub.append(" · ");
+      sub.append(k, el("b", null, v));
+    });
+    if (next.status === "late") sub.append(` · ${next.delayMin} min forsinket, som vanlig`);
+
+    box.append(count, when, sub);
+  }
+
+  function renderEmpty(list) {
+    const li = el("li", "empty");
+    li.append(
+      el("span", "art", "🌾"),
+      el("strong", null, "Helt sporløst."),
+      el("span", null, "Ingen tog funnet de neste timene. Kanskje en sykkeltur?")
+    );
+    list.append(li);
+  }
+
+  function render(deps) {
+    const list = $("departures");
+    list.replaceChildren();
+    renderSummary(deps);
+    renderNext(deps);
+
+    if (!deps.length) { renderEmpty(list); return; }
+
+    deps.forEach((d, i) => {
+      const li = el("li", `dep ${d.status}${d.departed ? " departed" : ""}`);
+      li.style.animationDelay = `${Math.min(i, 8) * 30}ms`;
 
       const time = el("div", "time");
       if (d.status === "ok" || d.cancelled) {
@@ -209,11 +270,12 @@
       main.append(head);
 
       const meta = el("div", "meta");
+      if (d.track) meta.append(el("span", "track", `Spor ${d.track}`));
       const parts = [];
-      if (d.track) parts.push(`Spor ${d.track}`);
-      if (!d.cancelled && d.arrivalExpected) parts.push(`fremme ${t(d.arrivalExpected)}`);
+      if (d.cancelled) parts.push(d.partlyCancelled ? "stopper ikke på destinasjonen" : "kommer ikke");
+      else if (d.arrivalExpected) parts.push(`fremme ${t(d.arrivalExpected)}`);
       if (d.inaccurate) parts.push("usikker prognose");
-      meta.textContent = parts.join(" · ");
+      if (parts.length) meta.append(`${d.track ? " · " : ""}${parts.join(" · ")}`);
       main.append(meta);
 
       for (const s of d.situations) main.append(el("p", "situation", s));
@@ -224,15 +286,16 @@
       else {
         const m = minutesUntil(d.expected);
         badge.textContent = d.departed ? "Gått" : m <= 0 ? "Nå" : m < 15 ? `${m} min` : "I rute";
+        if (!d.departed && m < 15) badge.classList.add("soon");
       }
 
       li.append(time, main, badge);
       list.append(li);
-    }
+    });
   }
 
   function verdict(total, late, gone) {
-    if (!total) return "";
+    if (!total) return "Ingen tog å klage på. Det er også en slags punktlighet.";
     const bad = (late + gone) / total;
     if (gone >= 3) return "Dette blir buss for tog, kjenner vi oss igjen.";
     if (gone > 0) return "Noen tog har forsvunnet sporløst.";
@@ -243,8 +306,9 @@
 
   function setStatus(msg, isError = false) {
     const s = $("status");
-    s.textContent = msg;
+    s.querySelector(".status-text").textContent = msg;
     s.classList.toggle("error", isError);
+    s.classList.toggle("loading", !isError && msg.startsWith("Henter"));
   }
 
   // ---------- Flyt ----------
