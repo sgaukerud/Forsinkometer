@@ -62,6 +62,21 @@
     </ol>
   </main>
 
+  <dialog class="detail" id="detail" aria-labelledby="detail-title">
+    <div class="sheet">
+      <header class="detail-head">
+        <div>
+          <h2 id="detail-title"></h2>
+          <p id="detail-sub"></p>
+        </div>
+        <button class="close" id="detail-close" aria-label="Lukk">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <div class="detail-body" id="detail-body" aria-live="polite"></div>
+    </div>
+  </dialog>
+
   <footer>
     <p>Data fra <a href="https://developer.entur.no" target="_blank" rel="noopener">Entur</a> (NLOD). Oppdateres hvert 30. sekund – oftere enn togene, noen dager.</p>
   </footer>
