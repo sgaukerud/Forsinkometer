@@ -29,7 +29,7 @@ query Departures($id: String!, $n: Int!, $range: Int!) {
       serviceJourney {
         id
         line { publicCode }
-        estimatedCalls { stopPositionInPattern aimedArrivalTime cancellation quay { stopPlace { id } } }
+        estimatedCalls { stopPositionInPattern aimedArrivalTime cancellation quay { stopPlace { id parent { id } } } }
       }
     }
   }
@@ -73,7 +73,7 @@ def check(name, from_id, to_id, n):
         sj_calls = c["serviceJourney"]["estimatedCalls"] or []
         if not sj_calls:
             empty_sj += 1
-        later = next((x for x in sj_calls if x["quay"]["stopPlace"]["id"] == to_id
+        later = next((x for x in sj_calls if to_id in (x["quay"]["stopPlace"]["id"], (x["quay"]["stopPlace"].get("parent") or {}).get("id"))
                       and x["stopPositionInPattern"] > c["stopPositionInPattern"]), None)
         if later:
             kept.append((c, later))
