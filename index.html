@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sporløs</title>
+  <meta name="description" content="Sanntid for tog mellom Ski og Oslo S – med ærlig oversikt over forsinkelser og innstillinger.">
+  <meta name="theme-color" content="#0f1115">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚆</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Sporløs</h1>
+      <p class="tagline">Vi viser deg toget – hvis det finnes.</p>
+    </div>
+    <div class="direction" role="tablist" aria-label="Retning">
+      <button role="tab" data-dir="SKI_OSL" aria-selected="true">Ski → Oslo S</button>
+      <button role="tab" data-dir="OSL_SKI" aria-selected="false">Oslo S → Ski</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="summary" aria-live="polite">
+      <div class="stat"><span class="num" id="stat-total">–</span><span class="label">avganger</span></div>
+      <div class="stat ok"><span class="num" id="stat-ok">–</span><span class="label">i rute</span></div>
+      <div class="stat late"><span class="num" id="stat-late">–</span><span class="label">forsinket</span></div>
+      <div class="stat gone"><span class="num" id="stat-cancelled">–</span><span class="label">sporløst</span></div>
+    </section>
+
+    <p class="verdict" id="verdict"></p>
+
+    <ol class="departures" id="departures" aria-live="polite"></ol>
+
+    <p class="status" id="status">Henter avganger …</p>
+  </main>
+
+  <footer>
+    <p>Data fra <a href="https://developer.entur.no" target="_blank" rel="noopener">Entur</a> (NLOD). Oppdateres hvert 30. sekund.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
