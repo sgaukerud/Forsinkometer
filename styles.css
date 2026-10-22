@@ -448,3 +448,193 @@ footer a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Klikkbare avganger ---------- */
+
+.dep[role="button"] { cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.dep[role="button"]:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgb(16 20 24 / 0.06), 0 10px 24px rgb(16 20 24 / 0.08); }
+.dep[role="button"]:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+.dep[role="button"]:active { transform: scale(0.99); }
+
+/* ---------- Detaljark ---------- */
+
+.detail {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  width: 100%;
+  max-width: 560px;
+  max-height: 100dvh;
+  margin: auto auto 0;
+}
+
+@media (min-width: 640px) { .detail { margin: auto; } }
+
+.detail::backdrop { background: rgb(8 10 12 / 0.55); backdrop-filter: blur(3px); }
+
+.detail[open] .sheet { animation: sheet-up 0.28s cubic-bezier(.2,.8,.2,1) both; }
+
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.sheet {
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (min-width: 640px) { .sheet { border-radius: 24px; max-height: 86vh; } }
+
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  background: var(--board);
+  color: var(--board-text);
+}
+
+.detail-head h2 { display: flex; align-items: center; gap: 4px; font-size: 1.3rem; }
+.detail-head .line { background: var(--signal); color: var(--board); font-size: 0.8rem; }
+.detail-head p { margin: 4px 0 0; color: var(--board-muted); font-size: 0.9rem; }
+
+.close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--board-2);
+  color: var(--board-text);
+  cursor: pointer;
+}
+.close:hover { background: rgb(255 255 255 / 0.12); }
+.close:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+.detail-body { overflow-y: auto; padding: 14px 14px 20px; display: grid; gap: 10px; overscroll-behavior: contain; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.card h3 {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.card .big { margin: 0; font: 700 1.15rem/1.3 var(--font-display); letter-spacing: -0.01em; }
+.card .note { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+.card .fine { margin: 8px 0 0; color: var(--muted); font-size: 0.72rem; }
+
+.detail-msg { margin: 8px 4px; }
+.detail-msg.error { color: var(--gone); }
+
+/* Kapasitet */
+
+.cap-row { display: flex; align-items: center; gap: 12px; }
+
+.bars { display: inline-flex; align-items: flex-end; gap: 3px; height: 22px; flex: none; }
+.bars i { display: block; width: 7px; border-radius: 2px; background: var(--border); }
+.bars i:nth-child(1) { height: 30%; }
+.bars i:nth-child(2) { height: 45%; }
+.bars i:nth-child(3) { height: 60%; }
+.bars i:nth-child(4) { height: 80%; }
+.bars i:nth-child(5) { height: 100%; }
+.bars.l1 i.on, .bars.l2 i.on { background: var(--ok); }
+.bars.l3 i.on { background: var(--late); }
+.bars.l4 i.on, .bars.l5 i.on { background: var(--gone); }
+
+/* Rute */
+
+.stops { list-style: none; margin: 4px 0 0; padding: 0; }
+
+.stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 52px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 34px;
+  font-size: 0.92rem;
+}
+
+/* Skinnegangen */
+.stop::before {
+  content: "";
+  position: absolute;
+  left: 7px; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--border);
+}
+.stop:first-child::before { top: 50%; }
+.stop:last-child::before { bottom: 50%; }
+.stop.passed::before { background: var(--muted); opacity: 0.5; }
+
+.st-dot {
+  position: relative;
+  z-index: 1;
+  width: 14px; height: 14px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 3px solid var(--muted);
+}
+
+.st-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; display: flex; flex-direction: column; line-height: 1.1; }
+.st-time s { font-size: 0.75rem; }
+.st-time b { color: var(--late); }
+
+.st-name { font-weight: 500; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.st-name em {
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--signal);
+  color: var(--board);
+}
+.st-name em.bad { background: var(--gone); color: var(--surface); }
+
+.stop.outside { opacity: 0.45; }
+.stop.passed .st-name { color: var(--muted); }
+.stop.passed .st-dot { background: var(--muted); border-color: var(--muted); }
+.stop.board .st-dot, .stop.alight .st-dot { border-color: var(--text); width: 16px; height: 16px; margin-left: 1px; }
+.stop.board .st-name, .stop.alight .st-name { font-weight: 700; }
+.stop.cancelled .st-name { text-decoration: line-through; color: var(--gone); }
+
+.stop.here .st-dot { background: var(--signal); border-color: var(--board); box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 40%, transparent); }
+
+.train { font-size: 1.1rem; animation: chug 1.2s ease-in-out infinite; }
+@keyframes chug { 50% { transform: translateY(-2px); } }
+
+.stop.moving { min-height: 30px; }
+.stop.moving .st-dot { visibility: hidden; }
+.stop.moving .st-name { color: var(--muted); font-style: italic; font-size: 0.85rem; }
+.stop.moving::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: calc(var(--frac, 0.5) * 100% - 6px);
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--signal);
+  border: 2px solid var(--board);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 40%, transparent);
+  z-index: 2;
+}

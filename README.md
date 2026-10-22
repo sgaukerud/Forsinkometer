@@ -10,6 +10,7 @@ Sanntidsoversikt over tog mellom **Ski og Oslo S**, begge veier, med forsinkelse
 - Data hentes direkte i nettleseren fra Enturs åpne API-er (ingen API-nøkkel, men `ET-Client-Name` er påkrevd):
   - **Geocoder** – slår opp stopp-ID for Ski stasjon og Oslo S første gang (caches i `localStorage`).
   - **Journey Planner v3 (GraphQL)** – henter togavganger fra avgangsstasjonen (`estimatedCalls`, inkludert innstilte), og beholder bare turer som faktisk stopper på destinasjonen senere i ruten.
+- Trykk på en avgang for å se togets rute, omtrentlig posisjon (beregnet fra sanntidstider, ikke GPS) og forventet kapasitet (`occupancyStatus`, når operatøren leverer det).
 - Oppdateres hvert 30. sekund og når fanen blir aktiv igjen.
 - Et tog regnes som forsinket fra 3 minutter (samme grense som Bane NORs punktlighetsmåling).
 
