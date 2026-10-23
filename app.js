@@ -1132,14 +1132,28 @@
 
   // ---------- Flyt ----------
 
+  // Demomodus: ?demo=innstilt later som at et par av de neste avgangene er innstilt,
+  // så man kan se hvordan det ser ut (og finne ventepilsen) uten å vente på Bane NOR.
+  const DEMO = new URLSearchParams(location.search).get("demo") === "innstilt";
+
+  function fakeCancellations(deps) {
+    const upcoming = deps.filter((d) => !d.departed && !d.cancelled);
+    [upcoming[0], upcoming[2]].filter(Boolean).forEach((d) => {
+      d.cancelled = true;
+      d.partlyCancelled = false;
+      d.status = "cancelled";
+    });
+  }
+
   async function refresh() {
     const { from, to } = state.route;
     try {
       const { deps, situations, origin } = await fetchDepartures(from.id, to.id);
       if (state.route.from.id !== from.id || state.route.to.id !== to.id) return;
       state.origin = origin;
+      if (DEMO) fakeCancellations(deps);
       render(deps, situations, logSignals(state.route, situations));
-      setStatus(`Oppdatert ${t(new Date())}`);
+      setStatus(`Oppdatert ${t(new Date())}${DEMO ? " · Demo: innstillingene er oppdiktet" : ""}`);
       if (state.detail) loadDetail();
     } catch (err) {
       console.error(err);
