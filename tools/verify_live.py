@@ -90,6 +90,50 @@ def check(name, from_id, to_id, n):
               f"{c['destinationDisplay']['frontText']}{'  INNSTILT' if c['cancellation'] else ''}")
 
 
+SIT_QUERY = """
+fragment Sit on PtSituationElement {
+  id reportType summary { value language } description { value language } advice { value language }
+  validityPeriod { startTime endTime } infoLinks { uri label }
+}
+query($id: String!, $to: String!) {
+  stopPlace(id: $id) {
+    situations { ...Sit }
+    estimatedCalls(numberOfDepartures: 40, whiteListedModes: [rail]) {
+      situations { ...Sit }
+      serviceJourney { line { id publicCode situations { ...Sit } } }
+    }
+  }
+  destination: stopPlace(id: $to) { situations { ...Sit } }
+}"""
+
+
+def check_situations(from_id, to_id):
+    """Speiler avviksmelding-spørringen i app.js og viser hva som regnes som signalfeil."""
+    import re
+    data = post(SIT_QUERY, {"id": from_id, "to": to_id})
+    if data.get("errors"):
+        print(f"\nAvviksmeldinger: GraphQL-feil: {data['errors']}")
+        return
+    d = data["data"]
+    found = {}
+    def add(sits, where):
+        for s in sits or []:
+            found.setdefault(s["id"], (s, set()))[1].add(where)
+    add(d["stopPlace"]["situations"], "fra-stasjon")
+    add(d["destination"]["situations"], "til-stasjon")
+    for c in d["stopPlace"]["estimatedCalls"]:
+        line = c["serviceJourney"]["line"]
+        add(line["situations"], f"linje {line['publicCode']}")
+        add(c["situations"], f"avgang {line['publicCode']}")
+    print(f"\nAvviksmeldinger: {len(found)} unike")
+    for s, where in found.values():
+        text = " ".join(t["value"] for k in ("summary", "description", "advice") for t in (s[k] or [])[:1])
+        signal = "SIGNALFEIL " if re.search(r"signal|sikringsanlegg|stillverk", text, re.I) else ""
+        vp = s.get("validityPeriod") or {}
+        print(f"  {signal}[{s['reportType']}] {(s['summary'] or [{'value': '?'}])[0]['value'][:90]}")
+        print(f"     {vp.get('startTime', '')[:16]} – {(vp.get('endTime') or '')[:16]}  ({', '.join(sorted(where))})")
+
+
 def main():
     print("Kjørt", datetime.now().isoformat(timespec="minutes"))
     ski = geocode("Ski stasjon")
@@ -97,6 +141,7 @@ def main():
     for n in (40, 150):
         check("Ski -> Oslo S", ski, osl, n)
         check("Oslo S -> Ski", osl, ski, n)
+    check_situations(ski, osl)
 
 
 if __name__ == "__main__":

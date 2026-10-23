@@ -4,7 +4,13 @@
 
   const CFG = window.SPORLOS_CONFIG;
   const HEADERS = { "ET-Client-Name": CFG.clientName };
-  const KEYS = { ids: "sporlos.stopIds.v3", route: "sporlos.route.v1", saved: "sporlos.saved.v1", recent: "sporlos.recent.v1" };
+  const KEYS = {
+    ids: "sporlos.stopIds.v3",
+    route: "sporlos.route.v1",
+    saved: "sporlos.saved.v1",
+    recent: "sporlos.recent.v1",
+    signal: "sporlos.signal.v1",
+  };
 
   const $ = (id) => document.getElementById(id);
   const state = { route: null, saved: [], timer: null, picking: null };
@@ -122,11 +128,24 @@
 
   // ---------- Avganger ----------
 
+  // Avviksmeldinger (SIRI-SX) fra Bane NOR og togselskapene, publisert via Entur.
+  const SITUATION = `
+    fragment Sit on PtSituationElement {
+      id
+      reportType
+      summary { value language }
+      description { value language }
+      advice { value language }
+      validityPeriod { startTime endTime }
+      infoLinks { uri label }
+    }`;
+
   const QUERY = `
-    query Departures($id: String!, $n: Int!, $range: Int!) {
+    query Departures($id: String!, $to: String!, $n: Int!, $range: Int!) {
       stopPlace(id: $id) {
         id
         name
+        situations { ...Sit }
         estimatedCalls(
           numberOfDepartures: $n
           timeRange: $range
@@ -143,13 +162,10 @@
           stopPositionInPattern
           quay { publicCode }
           destinationDisplay { frontText }
-          situations {
-            summary { value language }
-            description { value language }
-          }
+          situations { ...Sit }
           serviceJourney {
             id
-            line { publicCode name transportSubmode }
+            line { id publicCode name transportSubmode situations { ...Sit } }
             estimatedCalls {
               stopPositionInPattern
               aimedArrivalTime
@@ -160,7 +176,13 @@
           }
         }
       }
-    }`;
+      destination: stopPlace(id: $to) {
+        id
+        name
+        situations { ...Sit }
+      }
+    }
+    ${SITUATION}`;
 
   async function fetchDepartures(fromId, toId) {
     const res = await fetch(CFG.journeyPlannerUrl, {
@@ -168,16 +190,18 @@
       headers: { ...HEADERS, "Content-Type": "application/json" },
       body: JSON.stringify({
         query: QUERY,
-        variables: { id: fromId, n: CFG.numberOfDepartures, range: CFG.timeRangeSeconds },
+        variables: { id: fromId, to: toId, n: CFG.numberOfDepartures, range: CFG.timeRangeSeconds },
       }),
     });
     if (!res.ok) throw new Error(`Journey Planner ${res.status}`);
     const json = await res.json();
     if (json.errors?.length) throw new Error(json.errors.map((e) => e.message).join("; "));
-    const calls = json.data?.stopPlace?.estimatedCalls || [];
+    const from = json.data?.stopPlace;
+    const dest = json.data?.destination;
+    const calls = from?.estimatedCalls || [];
 
     // Behold bare avganger som faktisk stopper på destinasjonen senere i samme tur.
-    return calls
+    const kept = calls
       .map((call) => {
         // Ski stasjon og Oslo S er multimodale foreldrestopp i NSR. Sporene (quay) hører til
         // et barnestopp (tog), så vi må sammenligne med både barnet og forelderen.
@@ -186,10 +210,22 @@
           const atDest = sp?.id === toId || sp?.parent?.id === toId;
           return atDest && c.stopPositionInPattern > call.stopPositionInPattern;
         });
-        return later ? toDeparture(call, later) : null;
+        return later ? { call, later } : null;
       })
       .filter(Boolean)
       .slice(0, CFG.maxShown);
+
+    // Samle avviksmeldinger for strekningen: begge stasjoner, linjene og hver enkelt avgang.
+    const sits = new Situations();
+    sits.add(from?.situations, `${cleanName(from?.name) || "avgangsstasjonen"}`);
+    sits.add(dest?.situations, `${cleanName(dest?.name) || "ankomststasjonen"}`);
+    const deps = kept.map(({ call, later }) => {
+      const line = call.serviceJourney?.line;
+      if (line?.publicCode) sits.add(line.situations, `linje ${line.publicCode}`);
+      const own = sits.add(call.situations, line?.publicCode ? `linje ${line.publicCode}` : "enkeltavganger");
+      return toDeparture(call, later, own);
+    });
+    return { deps, situations: sits.list() };
   }
 
   function pickText(list) {
@@ -198,16 +234,97 @@
     return (nob || list[0]).value || "";
   }
 
-  function toDeparture(call, arrival) {
+  // ---------- Avviksmeldinger og signalfeil ----------
+
+  // Fritekst, så vi må lete etter ord. Fanger «signalfeil», «feil på signalanlegget»,
+  // «sikringsanlegg», «stillverk» og engelske «signal failure».
+  const SIGNAL_RE = /signal|sikringsanlegg|stillverk/i;
+  const SOON_MS = 3 * 3600 * 1000; // vis også meldinger som starter de neste tre timene
+
+  function safeLink(links) {
+    const l = (links || []).find((x) => /^https?:\/\//i.test(x?.uri || ""));
+    return l ? { uri: l.uri, label: l.label || "Les mer" } : null;
+  }
+
+  // Samler og slår sammen meldinger fra stopp, linjer og avganger (samme melding dukker opp mange steder).
+  class Situations {
+    constructor(now = Date.now()) { this.now = now; this.map = new Map(); }
+
+    // Returnerer de relevante meldingene i lista, slik at avgangen kan vise sine egne.
+    add(raw, where) {
+      const out = [];
+      for (const r of raw || []) {
+        const summary = pickText(r.summary);
+        const description = pickText(r.description);
+        if (!summary && !description) continue;
+        const start = r.validityPeriod?.startTime ? new Date(r.validityPeriod.startTime) : null;
+        const end = r.validityPeriod?.endTime ? new Date(r.validityPeriod.endTime) : null;
+        if (end && end < this.now) continue;
+        if (start && start - this.now > SOON_MS) continue;
+        const id = r.id || summary || description;
+        let s = this.map.get(id);
+        if (!s) {
+          const advice = pickText(r.advice);
+          s = {
+            id,
+            summary: summary || description,
+            description: description && description !== summary ? description : "",
+            advice,
+            start,
+            end,
+            upcoming: Boolean(start && start > this.now),
+            incident: r.reportType === "incident",
+            signal: SIGNAL_RE.test(`${summary} ${description} ${advice}`),
+            link: safeLink(r.infoLinks),
+            where: new Set(),
+          };
+          this.map.set(id, s);
+        }
+        if (where) s.where.add(where);
+        out.push(s);
+      }
+      return out.filter((s, i) => out.indexOf(s) === i);
+    }
+
+    list() {
+      const rank = (s) => (s.signal ? 0 : s.incident ? 1 : 2) + (s.upcoming ? 3 : 0);
+      return [...this.map.values()].sort((a, b) => rank(a) - rank(b) || (b.start || 0) - (a.start || 0));
+    }
+  }
+
+  // Signalfeil-telleren: husker hvilke signalfeil-meldinger vi har sett per dag og strekning,
+  // kun i denne nettleseren. Teller unike meldinger, ikke antall oppdateringer.
+  const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Oslo", year: "numeric", month: "2-digit", day: "2-digit" });
+  const dayKey = (d = new Date()) => dayFmt.format(d);
+  const pairKey = (r) => [r.from.id, r.to.id].sort().join("|");
+
+  function logSignals(route, situations, now = new Date()) {
+    const log = load(KEYS.signal, {});
+    const today = dayKey(now);
+    const pair = pairKey(route);
+    const active = situations.filter((s) => s.signal && !s.upcoming);
+    if (active.length) {
+      const day = (log[today] ||= {});
+      const seen = (day[pair] ||= {});
+      for (const s of active) seen[s.id] ||= { s: s.summary.slice(0, 160), t: now.toISOString() };
+    }
+    // Rydd: behold 30 dager.
+    const cutoff = dayKey(new Date(now - 30 * 864e5));
+    for (const k of Object.keys(log)) if (k < cutoff) delete log[k];
+    store(KEYS.signal, log);
+
+    const ids = (k) => Object.keys(log[k]?.[pair] || {});
+    const week = new Set();
+    for (let i = 0; i < 7; i++) ids(dayKey(new Date(now - i * 864e5))).forEach((id) => week.add(id));
+    return { active: active.length, today: ids(today).length, week: week.size };
+  }
+
+  function toDeparture(call, arrival, situations = []) {
     const aimed = new Date(call.aimedDepartureTime);
     const expected = new Date(call.expectedDepartureTime || call.aimedDepartureTime);
     const delayMin = Math.round((expected - aimed) / 60000);
     const cancelled = Boolean(call.cancellation || arrival.cancellation);
     const status = cancelled ? "cancelled" : delayMin >= CFG.lateThresholdMinutes ? "late" : "ok";
-    const seen = new Set();
-    const situations = (call.situations || [])
-      .map((s) => pickText(s.summary) || pickText(s.description))
-      .filter((t) => t && !seen.has(t) && seen.add(t));
 
     return {
       journeyId: call.serviceJourney?.id || "",
@@ -252,7 +369,7 @@
     return arr ? Math.round((arr - d.expected) / 60000) : null;
   }
 
-  function renderSummary(deps) {
+  function renderSummary(deps, signalNow = 0) {
     const late = deps.filter((d) => d.status === "late").length;
     const gone = deps.filter((d) => d.status === "cancelled").length;
     const ok = deps.length - late - gone;
@@ -260,7 +377,7 @@
     $("stat-ok").textContent = ok;
     $("stat-late").textContent = late;
     $("stat-cancelled").textContent = gone;
-    $("verdict").textContent = verdict(deps.length, late, gone);
+    $("verdict").textContent = signalNow ? "Signalfeil. Selvfølgelig." : verdict(deps.length, late, gone);
 
     const meter = $("meter");
     const pct = (n) => (deps.length ? `${(n / deps.length) * 100}%` : "0%");
@@ -316,11 +433,13 @@
     list.append(li);
   }
 
-  function render(deps) {
+  function render(deps, situations = [], tally = null) {
     const list = $("departures");
     list.replaceChildren();
-    renderSummary(deps);
+    renderSummary(deps, tally?.active || 0);
     renderNext(deps);
+    renderAlerts(situations);
+    renderTally(tally);
 
     if (!deps.length) { renderEmpty(list); return; }
 
@@ -360,7 +479,7 @@
       if (parts.length) meta.append(`${d.track ? " · " : ""}${parts.join(" · ")}`);
       main.append(meta);
 
-      for (const s of d.situations) main.append(el("p", "situation", s));
+      for (const s of d.situations) main.append(el("p", s.signal ? "situation signal" : "situation", s.summary));
 
       const badge = el("div", "badge");
       if (d.cancelled) badge.textContent = d.partlyCancelled ? "Stopper ikke" : "Innstilt";
@@ -376,12 +495,93 @@
     });
   }
 
+  const dateFmt = new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "numeric", timeZone: "Europe/Oslo" });
+  const when = (d) => (dayKey(d) === dayKey() ? t(d) : `${dateFmt.format(d)} ${t(d)}`);
+
+  function validity(s) {
+    if (s.upcoming) return `Starter ${when(s.start)}`;
+    if (s.start && s.end) return `${when(s.start)}–${when(s.end)}`;
+    if (s.start) return `Siden ${when(s.start)}`;
+    if (s.end) return `Til ${when(s.end)}`;
+    return "";
+  }
+
+  function situationItem(s, tag = "li") {
+    const item = el(tag, ["alert", s.signal && "signal", s.incident && "incident", s.upcoming && "upcoming"].filter(Boolean).join(" "));
+    const head = el("div", "alert-head");
+    if (s.signal) head.append(el("span", "tag", "Signalfeil"));
+    else if (s.upcoming) head.append(el("span", "tag soft", "Kommer"));
+    head.append(el("strong", null, s.summary));
+    const meta = [validity(s), s.where.size ? `Gjelder ${[...s.where].join(", ")}` : ""].filter(Boolean).join(" · ");
+
+    const extra = [];
+    if (s.description) extra.push(el("p", null, s.description));
+    if (s.advice && s.advice !== s.description) extra.push(el("p", "advice", s.advice));
+    if (s.link) {
+      const a = el("a", null, s.link.label);
+      a.href = s.link.uri;
+      a.target = "_blank";
+      a.rel = "noopener";
+      const p = el("p");
+      p.append(a);
+      extra.push(p);
+    }
+
+    if (extra.length) {
+      const det = el("details");
+      const sum = el("summary");
+      sum.append(head);
+      if (meta) sum.append(el("span", "alert-meta", meta));
+      det.append(sum, el("div", "alert-body"));
+      det.lastChild.append(...extra);
+      item.append(det);
+    } else {
+      item.append(head);
+      if (meta) item.append(el("span", "alert-meta", meta));
+    }
+    return item;
+  }
+
+  function renderAlerts(situations) {
+    const box = $("alerts");
+    const list = $("alerts-list");
+    // Behold åpne meldinger åpne når lista tegnes på nytt hvert 30. sekund.
+    const open = new Set([...list.querySelectorAll("details[open]")].map((d) => d.closest("[data-id]")?.dataset.id));
+    list.replaceChildren();
+    box.hidden = false;
+    $("alerts-count").textContent = situations.length ? `${situations.length} aktive` : "";
+    if (!situations.length) {
+      list.append(el("li", "alert none", "Ingen driftsmeldinger fra Bane NOR eller togselskapene akkurat nå. Mistenkelig stille."));
+      return;
+    }
+    situations.forEach((s) => {
+      const li = situationItem(s);
+      li.dataset.id = s.id;
+      if (open.has(s.id)) li.querySelector("details")?.setAttribute("open", "");
+      list.append(li);
+    });
+  }
+
+  function renderTally(tally) {
+    const box = $("signal-tally");
+    if (!tally) { box.hidden = true; return; }
+    box.hidden = false;
+    box.classList.toggle("hot", tally.active > 0);
+    $("signal-today").textContent = tally.today;
+    let note;
+    if (tally.active) note = tally.active === 1 ? "1 signalfeil pågår nå." : `${tally.active} signalfeil pågår nå.`;
+    else if (tally.today) note = "Ingen akkurat nå. Skinnene puster ut.";
+    else note = "Ingen så langt i dag. Dagen er ung.";
+    if (tally.week > tally.today) note += ` ${tally.week} siste 7 dager.`;
+    $("signal-note").textContent = note;
+  }
+
   function verdict(total, late, gone) {
     if (!total) return "Ingen tog å klage på. Det er også en slags punktlighet.";
     const bad = (late + gone) / total;
     if (gone >= 3) return "Dette blir buss for tog, kjenner vi oss igjen.";
     if (gone > 0) return "Noen tog har forsvunnet sporløst.";
-    if (bad >= 0.5) return "Signalfeil-stemning. Ta med en kaffe.";
+    if (bad >= 0.5) return "Halve tavla er gul. Ta med en kaffe.";
     if (bad > 0) return "Litt rusk i sporet, men det går.";
     return "Alt i rute. Nyt det mens det varer.";
   }
@@ -555,6 +755,16 @@
     if (d.cancelled) sub.push("innstilt");
     $("detail-sub").textContent = sub.join(" · ");
 
+    // Avviksmeldinger for akkurat denne avgangen
+    if (d.situations.length) {
+      const sitCard = el("section", "card sits");
+      sitCard.append(el("h3", null, "Driftsmeldinger"));
+      const ul = el("ul", "alerts-list");
+      d.situations.forEach((s) => ul.append(situationItem(s)));
+      sitCard.append(ul);
+      body.append(sitCard);
+    }
+
     if (cur.error && !cur.stops) {
       body.append(el("p", "detail-msg error", `Klarte ikke å hente ruten (${cur.error}). Toget er kanskje ekstra sporløst i dag.`));
       return;
@@ -689,6 +899,8 @@
     renderRoute();
     $("departures").replaceChildren(...Array.from({ length: 4 }, () => el("li", "skeleton")));
     $("next").hidden = true;
+    $("alerts").hidden = true;
+    $("signal-tally").hidden = true;
     setStatus("Henter avganger …");
     refresh();
   }
@@ -771,9 +983,9 @@
   async function refresh() {
     const { from, to } = state.route;
     try {
-      const deps = await fetchDepartures(from.id, to.id);
+      const { deps, situations } = await fetchDepartures(from.id, to.id);
       if (state.route.from.id !== from.id || state.route.to.id !== to.id) return;
-      render(deps);
+      render(deps, situations, logSignals(state.route, situations));
       setStatus(`Oppdatert ${t(new Date())}`);
       if (state.detail) loadDetail();
     } catch (err) {
