@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sporløs – sjekker v1-logikken mot live Entur-API.
+"""Forsinkometer – sjekker v1-logikken mot live Entur-API.
 
 Kjør:  python3 tools/verify_live.py
 Bruker kun standardbiblioteket. Speiler spørringen og filtreringen i app.js
@@ -12,7 +12,7 @@ import urllib.request
 from collections import Counter
 from datetime import datetime
 
-CLIENT = "sgaukerud-sporlos"
+CLIENT = "sgaukerud-forsinkometer"
 JP = "https://api.entur.io/journey-planner/v3/graphql"
 GEO = "https://api.entur.io/geocoder/v1/autocomplete"
 HEADERS = {"ET-Client-Name": CLIENT}
