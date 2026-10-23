@@ -11,6 +11,8 @@ Sanntidsoversikt over tog mellom **Ski og Oslo S** (eller hvilke som helst to to
   - **Geocoder** – stasjonssøk (kun togstasjoner) og oppslag av stopp-ID fra navn (caches i `localStorage`).
   - **Journey Planner v3 (GraphQL)** – henter togavganger fra avgangsstasjonen (`estimatedCalls`, inkludert innstilte), og beholder bare turer som faktisk stopper på destinasjonen senere i ruten.
 - Trykk på en avgang for å se togets rute, omtrentlig posisjon (beregnet fra sanntidstider, ikke GPS) og forventet kapasitet (`occupancyStatus`, når operatøren leverer det).
+- **Driftsmeldinger:** avviksmeldinger (SIRI-SX) fra Bane NOR og togselskapene hentes via Entur (`situations` på begge stasjoner, linjene og hver avgang), slås sammen og vises over avgangslista. Meldinger som starter de neste tre timene vises som «Kommer».
+- **Signalfeil-teller:** meldinger som nevner signal, sikringsanlegg eller stillverk merkes som signalfeil (fritekst, så det er et ordsøk). Telleren viser unike signalfeil på strekningen i dag og siste 7 dager, logget i `localStorage` mens appen er åpen. Bane NOR har ikke eget åpent API for signalfeil.
 - Oppdateres hvert 30. sekund og når fanen blir aktiv igjen.
 - Et tog regnes som forsinket fra 3 minutter (samme grense som Bane NORs punktlighetsmåling).
 

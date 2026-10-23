@@ -61,6 +61,20 @@
         <div class="stat late"><dt>Forsinket</dt><dd id="stat-late">–</dd></div>
         <div class="stat gone"><dt>Sporløst</dt><dd id="stat-cancelled">–</dd></div>
       </dl>
+      <div class="signal-tally" id="signal-tally" aria-live="polite" hidden>
+        <span class="signal-icon" aria-hidden="true">🚦</span>
+        <p><span class="signal-label">Signalfeil i dag</span> <b id="signal-today">0</b></p>
+        <p class="signal-note" id="signal-note"></p>
+        <p class="fine">Telles fra driftsmeldingene på strekningen mens Sporløs er åpen i denne nettleseren.</p>
+      </div>
+    </section>
+
+    <section class="alerts" id="alerts" aria-label="Driftsmeldinger" hidden>
+      <div class="list-head">
+        <h2>Driftsmeldinger</h2>
+        <p class="status" id="alerts-count"></p>
+      </div>
+      <ul class="alerts-list" id="alerts-list"></ul>
     </section>
 
     <div class="list-head">
@@ -110,7 +124,7 @@
   </dialog>
 
   <footer>
-    <p>Data fra <a href="https://developer.entur.no" target="_blank" rel="noopener">Entur</a> (NLOD). Oppdateres hvert 30. sekund – oftere enn togene, noen dager.</p>
+    <p>Data fra <a href="https://developer.entur.no" target="_blank" rel="noopener">Entur</a> (NLOD), driftsmeldinger fra Bane NOR og togselskapene. Oppdateres hvert 30. sekund – oftere enn togene, noen dager.</p>
   </footer>
 
   <script src="config.js"></script>
