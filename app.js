@@ -549,7 +549,17 @@
     const open = new Set([...list.querySelectorAll("details[open]")].map((d) => d.closest("[data-id]")?.dataset.id));
     list.replaceChildren();
     box.hidden = false;
-    $("alerts-count").textContent = situations.length ? `${situations.length} aktive` : "";
+    // Sammenslått som standard; overskriften viser antall og den viktigste meldingen.
+    const signals = situations.filter((s) => s.signal && !s.upcoming).length;
+    const count = $("alerts-count");
+    count.textContent = situations.length || "";
+    count.hidden = !situations.length;
+    count.classList.toggle("signal", signals > 0);
+    const top = situations[0];
+    $("alerts-peek").textContent = top
+      ? `${top.signal && !top.upcoming ? "🚦 " : ""}${top.summary}${situations.length > 1 ? ` (+${situations.length - 1})` : ""}`
+      : "Ingen akkurat nå. Mistenkelig stille.";
+    $("alerts-fold").classList.toggle("signal", signals > 0);
     if (!situations.length) {
       list.append(el("li", "alert none", "Ingen driftsmeldinger fra Bane NOR eller togselskapene akkurat nå. Mistenkelig stille."));
       return;

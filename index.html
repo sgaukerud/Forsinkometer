@@ -70,11 +70,13 @@
     </section>
 
     <section class="alerts" id="alerts" aria-label="Driftsmeldinger" hidden>
-      <div class="list-head">
-        <h2>Driftsmeldinger</h2>
-        <p class="status" id="alerts-count"></p>
-      </div>
-      <ul class="alerts-list" id="alerts-list"></ul>
+      <details class="alerts-fold" id="alerts-fold">
+        <summary class="alerts-summary">
+          <span class="alerts-title"><h2>Driftsmeldinger</h2><span class="alerts-count" id="alerts-count"></span></span>
+          <span class="alerts-peek" id="alerts-peek"></span>
+        </summary>
+        <ul class="alerts-list" id="alerts-list"></ul>
+      </details>
     </section>
 
     <div class="list-head">
