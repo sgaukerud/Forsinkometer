@@ -4,6 +4,7 @@ window.SPORLOS_CONFIG = {
   clientName: "sgaukerud-forsinkometer",
   journeyPlannerUrl: "https://api.entur.io/journey-planner/v3/graphql",
   geocoderUrl: "https://api.entur.io/geocoder/v1/autocomplete",
+  overpassUrl: "https://overpass-api.de/api/interpreter", // OpenStreetMap, for ventepils ved innstilte tog
 
   // Standardstrekning. Stasjonene slås opp via Entur Geocoder og caches i nettleseren;
   // fallbackId brukes hvis oppslaget feiler.

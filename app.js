@@ -145,6 +145,8 @@
       stopPlace(id: $id) {
         id
         name
+        latitude
+        longitude
         situations { ...Sit }
         estimatedCalls(
           numberOfDepartures: $n
@@ -225,7 +227,10 @@
       const own = sits.add(call.situations, line?.publicCode ? `linje ${line.publicCode}` : "enkeltavganger");
       return toDeparture(call, later, own);
     });
-    return { deps, situations: sits.list() };
+    const origin = from?.latitude != null && from?.longitude != null
+      ? { id: from.id, name: cleanName(from.name), lat: from.latitude, lon: from.longitude }
+      : null;
+    return { deps, situations: sits.list(), origin };
   }
 
   function pickText(list) {
@@ -481,6 +486,20 @@
 
       for (const s of d.situations) main.append(el("p", s.signal ? "situation signal" : "situation", s.summary));
 
+      if (d.cancelled && state.origin) {
+        const beer = el("a", "pils-link", "🍺 Ventepils i nærheten");
+        beer.href = pubSearchUrl(state.origin);
+        beer.target = "_blank";
+        beer.rel = "noopener";
+        beer.addEventListener("click", (e) => {
+          e.stopPropagation();
+          // Har vi detaljvisning, viser vi nærmeste vannhull der i stedet for å sende deg rett til kartet.
+          if (d.journeyId) { e.preventDefault(); openDetail(d); }
+        });
+        beer.addEventListener("keydown", (e) => e.stopPropagation());
+        main.append(beer);
+      }
+
       const badge = el("div", "badge");
       if (d.cancelled) badge.textContent = d.partlyCancelled ? "Stopper ikke" : "Innstilt";
       else if (d.status === "late") badge.textContent = `+${d.delayMin} min`;
@@ -714,9 +733,127 @@
     return wrap;
   }
 
+  // ---------- Ventepils: nærmeste vannhull når toget er innstilt ----------
+
+  const PUB_RADIUS_M = 1500;
+  const PUB_KINDS = { pub: "Pub", bar: "Bar", biergarten: "Ølhage" };
+  const pubCache = new Map(); // stasjons-id -> Promise<pub[]>
+
+  function pubSearchUrl(o) {
+    return `https://www.google.com/maps/search/pub/@${o.lat},${o.lon},16z`;
+  }
+
+  function walkUrl(o, p) {
+    const q = new URLSearchParams({
+      api: "1",
+      origin: `${o.lat},${o.lon}`,
+      destination: `${p.lat},${p.lon}`,
+      travelmode: "walking",
+    });
+    return `https://www.google.com/maps/dir/?${q}`;
+  }
+
+  function distanceM(a, b) {
+    const rad = (x) => (x * Math.PI) / 180;
+    const dLat = rad(b.lat - a.lat);
+    const dLon = rad(b.lon - a.lon);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * 6371000 * Math.asin(Math.sqrt(h));
+  }
+
+  // Slår opp puber og barer rundt stasjonen i OpenStreetMap (Overpass). Ingen nøkkel, ingen backend.
+  function fetchPubs(o) {
+    if (pubCache.has(o.id)) return pubCache.get(o.id);
+    const q = `[out:json][timeout:15];nwr["amenity"~"^(pub|bar|biergarten)$"]["name"](around:${PUB_RADIUS_M},${o.lat},${o.lon});out center tags 60;`;
+    const job = fetch(CFG.overpassUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=${encodeURIComponent(q)}`,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Overpass ${res.status}`);
+        return res.json();
+      })
+      .then((json) =>
+        (json.elements || [])
+          .map((e) => {
+            const lat = e.lat ?? e.center?.lat;
+            const lon = e.lon ?? e.center?.lon;
+            if (lat == null || lon == null) return null;
+            const p = { name: e.tags.name, kind: PUB_KINDS[e.tags.amenity] || "Bar", lat, lon };
+            p.dist = distanceM(o, p);
+            return p;
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.dist - b.dist)
+          .slice(0, 3)
+      );
+    job.catch(() => pubCache.delete(o.id)); // prøv igjen neste gang
+    pubCache.set(o.id, job);
+    return job;
+  }
+
+  function loadPubs(cur) {
+    const o = cur.origin;
+    if (!o || cur.pubs !== undefined) return;
+    cur.pubs = null; // laster
+    fetchPubs(o)
+      .then((pubs) => { cur.pubs = pubs; })
+      .catch((err) => { console.error(err); cur.pubs = { error: err.message }; })
+      .finally(() => { if (state.detail === cur) renderDetail(); });
+  }
+
+  const PUB_QUIPS = [
+    "Toget kommer ikke. Det gjør derimot en halvliter.",
+    "Bane NOR har gitt deg fri. Bruk den klokt.",
+    "Innstilt tog, innstilt humør? Ikke nødvendigvis.",
+    "Neste tog er usikkert. Skummet er sikkert.",
+  ];
+
+  function pubCard(cur) {
+    const o = cur.origin;
+    const card = el("section", "card pils");
+    card.append(el("h3", null, "Ventepils"));
+    // Fast spøk per avgang, så teksten ikke hopper ved hver oppdatering.
+    const seed = [...(cur.dep.journeyId || cur.dep.line || "x")].reduce((n, ch) => n + ch.charCodeAt(0), 0);
+    const quip = PUB_QUIPS[seed % PUB_QUIPS.length];
+    card.append(el("p", "big", quip));
+
+    const fallback = el("a", "pils-more", "Se alle i kartet");
+    fallback.href = pubSearchUrl(o);
+    fallback.target = "_blank";
+    fallback.rel = "noopener";
+
+    const pubs = cur.pubs;
+    if (pubs === null || pubs === undefined) {
+      card.append(el("p", "note", `Leter etter nærmeste vannhull ved ${o.name}…`));
+    } else if (pubs.error || !pubs.length) {
+      card.append(el("p", "note", pubs.error
+        ? "Fant ikke kartet akkurat nå. Følg nesa, eller kartet:"
+        : `Ingen puber innen ${PUB_RADIUS_M / 1000} km fra ${o.name}. Tørrlagt område. Prøv kartet:`));
+      card.append(fallback);
+    } else {
+      const ol = el("ol", "pubs");
+      for (const p of pubs) {
+        const li = el("li");
+        const a = el("a", null);
+        a.href = walkUrl(o, p);
+        a.target = "_blank";
+        a.rel = "noopener";
+        const mins = Math.max(1, Math.round(p.dist / 80));
+        a.append(el("strong", null, p.name), el("span", "pub-meta", `${p.kind} · ${Math.round(p.dist / 10) * 10} m · ca. ${mins} min å gå`));
+        li.append(a);
+        ol.append(li);
+      }
+      card.append(ol, fallback);
+    }
+    card.append(el("p", "fine", "Fra OpenStreetMap. Drikk ansvarlig, og husk at toget en dag kommer tilbake."));
+    return card;
+  }
+
   function openDetail(dep) {
     const dlg = $("detail");
-    state.detail = { dep, stops: null, error: null };
+    state.detail = { dep, stops: null, error: null, origin: dep.cancelled ? state.origin : null, pubs: undefined };
     renderDetail();
     if (!dlg.open) dlg.showModal();
     loadDetail();
@@ -754,6 +891,11 @@
     if (d.status === "late") sub.push(`${d.delayMin} min forsinket`);
     if (d.cancelled) sub.push("innstilt");
     $("detail-sub").textContent = sub.join(" · ");
+
+    if (d.cancelled && cur.origin) {
+      loadPubs(cur);
+      body.append(pubCard(cur));
+    }
 
     // Avviksmeldinger for akkurat denne avgangen
     if (d.situations.length) {
@@ -983,8 +1125,9 @@
   async function refresh() {
     const { from, to } = state.route;
     try {
-      const { deps, situations } = await fetchDepartures(from.id, to.id);
+      const { deps, situations, origin } = await fetchDepartures(from.id, to.id);
       if (state.route.from.id !== from.id || state.route.to.id !== to.id) return;
+      state.origin = origin;
       render(deps, situations, logSignals(state.route, situations));
       setStatus(`Oppdatert ${t(new Date())}`);
       if (state.detail) loadDetail();
