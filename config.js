@@ -1,7 +1,7 @@
-// Sporløs – konfigurasjon
+// Forsinkometer – konfigurasjon
 // Entur krever en identifiserende ET-Client-Name på formen "<organisasjon>-<applikasjon>".
 window.SPORLOS_CONFIG = {
-  clientName: "sgaukerud-sporlos",
+  clientName: "sgaukerud-forsinkometer",
   journeyPlannerUrl: "https://api.entur.io/journey-planner/v3/graphql",
   geocoderUrl: "https://api.entur.io/geocoder/v1/autocomplete",
 

@@ -1,4 +1,4 @@
-// Sporløs – sanntid for tog på en valgfri strekning (standard Ski – Oslo S) via Entur Journey Planner v3.
+// Forsinkometer – sanntid for tog på en valgfri strekning (standard Ski – Oslo S) via Entur Journey Planner v3.
 (() => {
   "use strict";
 
@@ -850,7 +850,7 @@
     const r = state.route;
     $("from-name").textContent = r.from.name;
     $("to-name").textContent = r.to.name;
-    document.title = `${r.from.name} → ${r.to.name} · Sporløs`;
+    document.title = `${r.from.name} → ${r.to.name} · Forsinkometer`;
 
     const isSaved = state.saved.some((s) => samePair(s, r));
     const star = $("star");
